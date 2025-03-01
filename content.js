@@ -41,9 +41,14 @@ class KnownList {
 
     static async create() {
         const data = await chrome.storage.local.get(KnownList.localStorageKey);
-        const items = JSON.parse(data[KnownList.localStorageKey]);
-        const players = items.map(item => Player.fromJson(item));
-        return new KnownList(players);
+        try {
+            const items = JSON.parse(data[KnownList.localStorageKey]);
+            const players = items.map(item => Player.fromJson(item));
+            return new KnownList(players);
+        } catch (e) {
+            console.warn(e);
+            return new KnownList([]);
+        }
     }
 
     constructor(knownPlayers) {
