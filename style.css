@@ -1,0 +1,49 @@
+span.friend {
+    color: #f9ca24;
+}
+
+.summary:has(+ .details.has-friend) .button.primary {
+    color: #ffeaa7;
+}
+
+.summary:has(+ .details.has-friend) .button.primary:after {
+    content: "*";
+    width: 12px;
+    display: inline-block;
+    transform: translateX(-6px);
+}
+
+.blocked {
+    color: #666;
+    text-decoration: line-through;
+}
+
+.summary:has(+ .details.has-blocked) .button.primary {
+    color: #222f3e;
+}
+
+.summary:has(+ .details.has-blocked) .button.primary:after {
+    content: "✖";
+    font-size: 12px;
+    width: 12px;
+    display: inline-block;
+    transform: translate(-6px, -6px);
+}
+
+.status-button-container {
+    position: absolute;
+    top: calc(100% + 40px);
+}
+
+.status-button-container .button {
+    display: block;
+}
+
+.note-text {
+    flex: 1 1 auto;
+    text-align: right;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 500px;
+}
