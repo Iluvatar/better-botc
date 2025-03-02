@@ -134,13 +134,48 @@ class KnownList {
         this.blockedIds = new Set(this.playerMap.values().filter(p => p.status === Status.BLOCKED).map(p => p.id));
         const playerList = [...this.playerMap.values().map(p => p.toJson())];
         chrome.storage.local.set({[KnownList.localStorageKey]: JSON.stringify(playerList)});
+        this.createStatusCss();
         console.log(playerList);
+    }
+
+    createStatusCss() {
+        const friendIdList = [...this.friendIds.values().map(id => `.id-${id}`)].join(", ");
+        const blockedIdList = [...this.blockedIds.values().map(id => `.id-${id}`)].join(", ");
+
+        const statusCss = `
+            li:has(> div:is(${friendIdList})) > .chat-video,
+            li.storyteller:is(${friendIdList}) > .chat-video {
+                border: 3px solid #e1b12c;
+            }
+
+            li:has(> div:is(${blockedIdList})) > .chat-video,
+            li.storyteller:is(${blockedIdList}) > .chat-video {
+                border: 3px solid #e84118;
+            }
+
+            li:has(> div:is(${blockedIdList})) > .nameplate-container .name,
+            li.storyteller:is(${blockedIdList}) > .nameplate .name {
+                color: #666;
+                text-decoration: line-through;
+            }
+
+            li:has(> div:is(${blockedIdList})) > .nameplate-container .pronouns,
+            li.storyteller:is(${blockedIdList}) > .nameplate .pronouns {
+                color: #666;
+            }
+        `;
+
+        const styleElem = document.getElementById("status-css") ?? document.createElement("style");
+        styleElem.id = "status-css";
+        styleElem.textContent = statusCss;
+        document.head.appendChild(styleElem);
     }
 }
 
 class ModalObserver {
-    constructor(baseElem, userModalCallback) {
+    constructor(baseElem, modalSelector, userModalCallback) {
         this.baseElem = baseElem;
+        this.modalSelector = modalSelector;
         this.userModalObserver = this.createUserModalObserver(userModalCallback);
     }
 
@@ -149,7 +184,7 @@ class ModalObserver {
         const observer = new MutationObserver((mutations) => {
             mutations
                 .flatMap(mutation => Array.from(mutation.addedNodes))
-                .filter(node => node.nodeType === Node.ELEMENT_NODE && node.matches("div.modal-backdrop.user"))
+                .filter(node => node.nodeType === Node.ELEMENT_NODE && node.matches(this.modalSelector))
                 .forEach(callback);
         });
         observer.observe(this.baseElem, config);
@@ -247,7 +282,7 @@ class LobbyFormatter {
     }
 }
 
-class ModalHandler {
+class UserModalHandler {
     constructor(knownList) {
         this.knownList = knownList;
     }
@@ -272,14 +307,14 @@ class ModalHandler {
             const player = this.knownList.getPlayer(id, name);
             this.knownList.toggleFriend(player);
             this.updateStatusButtons(friendButton, blockedButton, id);
-            document.querySelector(`[data-id="${id}"]`).classList.toggle("friend");
+            document.querySelector(`[data-id="${id}"]`)?.classList.toggle("friend");
         });
 
         blockedButton.addEventListener("click", () => {
             const player = this.knownList.getPlayer(id, name);
             this.knownList.toggleBlocked(player);
             this.updateStatusButtons(friendButton, blockedButton, id);
-            document.querySelector(`[data-id="${id}"]`).classList.toggle("blocked");
+            document.querySelector(`[data-id="${id}"]`)?.classList.toggle("blocked");
         });
 
         notesElem.addEventListener("click", () => {
@@ -367,13 +402,13 @@ class ModalHandler {
 }
 
 class App {
-    constructor(appElem, lobbyFormatter, modalHandler) {
+    constructor(appElem, lobbyFormatter, userModalHandler) {
         this.appElem = appElem;
         this.lobbyFormatter = lobbyFormatter;
-        this.modalHandler = modalHandler;
+        this.userModalHandler = userModalHandler;
         this.lobbyObserver = null;
         this.lobbyModalObserver = null;
-        this.grimoireModalObserver = null;
+        this.grimoireUserModalObserver = null;
 
         this.state = "starting";
 
@@ -416,7 +451,7 @@ class App {
         console.log(`changing state from ${this.state} to ${newState}`);
 
         if (newState === "lobby") {
-            this.grimoireModalObserver?.disconnect();
+            this.grimoireUserModalObserver?.disconnect();
             this.fillLobby();
         } else if (newState === "grimoire") {
             this.lobbyObserver?.disconnect();
@@ -433,18 +468,17 @@ class App {
         this.lobbyObserver = new LobbyObserver(this.getLobbyElem(),
             () => this.lobbyFormatter.formatLobby()
         );
-        this.lobbyModalObserver = new ModalObserver(this.getLobbyElem(),
-            (modal) => this.modalHandler.replaceModal(modal)
+        this.lobbyModalObserver = new ModalObserver(this.getLobbyElem(), "div.modal-backdrop.user",
+            (modal) => this.userModalHandler.replaceModal(modal)
         );
     }
 
     fillGrimoire() {
-        this.grimoireModalObserver = new ModalObserver(this.getGrimoireElem(),
-            (modal) => this.modalHandler.replaceModal(modal)
+        this.grimoireUserModalObserver = new ModalObserver(this.getGrimoireElem(), "div.modal-backdrop.user",
+            (modal) => this.userModalHandler.replaceModal(modal)
         );
     }
 }
-
 
 
 (async () => {
@@ -452,8 +486,8 @@ class App {
 
     const knownList = await KnownList.create();
     const lobbyFormatter = new LobbyFormatter(knownList);
-    const modalHandler = new ModalHandler(knownList);
-    const app = new App(appElem, lobbyFormatter, modalHandler);
+    const userModalHandler = new UserModalHandler(knownList);
+    const app = new App(appElem, lobbyFormatter, userModalHandler);
 
 
     window.addEventListener("message", (event) => {
